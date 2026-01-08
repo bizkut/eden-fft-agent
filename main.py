@@ -368,6 +368,11 @@ Just respond with the phase name, nothing else."""
         """Handle world map navigation."""
         print("On world map - asking LLM for destination...")
         
+        # Safety: Reset battle record if we exited battle unexpectedly
+        if self.current_battle_record:
+            print("[Agent] Warning: Cleaning up stale battle record")
+            self.current_battle_record = None
+        
         prompt = """
         You are on the FFT world map. 
         What should we do next?
@@ -565,11 +570,18 @@ Respond with ONLY: YES or NO"""
         
         # Record battle outcome if learning is enabled
         if self.strategy_learner and self.current_battle_record:
-            # TODO: Detect victory/defeat from screen (for now assume victory if we got here)
-            # In a real implementation, use OCR or LLM vision to detect "Victory" vs "Defeat"
-            victory = True  # Placeholder - would detect from screen
+            # Detect victory/defeat using Vision LLM
+            victory = self._detect_battle_outcome()
             turns = len(self.current_battle_record.actions_taken)
-            units_lost = 0  # Would count from memory state
+            
+            # Count units lost from memory
+            units_lost = 0
+            if self.memory_reader:
+                try:
+                    mem_state = self.memory_reader.read_game_state()
+                    units_lost = sum(1 for u in mem_state.units if u.max_hp > 0 and u.hp == 0)
+                except:
+                    pass
             
             self.strategy_learner.end_battle(
                 self.current_battle_record, 
@@ -587,6 +599,38 @@ Respond with ONLY: YES or NO"""
         # Auto-save if enabled
         if self.config.auto_save and self.battle_count % self.config.save_interval == 0:
             print(f"Auto-saving after {self.battle_count} battles...")
+    
+    def _detect_battle_outcome(self) -> bool:
+        """Use Vision LLM to detect if we won or lost the battle."""
+        try:
+            frame = self.capture.capture()
+            pil_img = Image.fromarray(frame)
+            if pil_img.width > 512:
+                pil_img.thumbnail((512, 512))
+            buf = io.BytesIO()
+            pil_img.save(buf, format="JPEG", quality=70)
+            img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+            
+            prompt = """Look at this Final Fantasy Tactics battle result screen.
+Did we WIN or LOSE the battle?
+
+Look for:
+- "Victory" or "Congratulations" = WIN
+- "Defeat" or "Game Over" = LOSE
+- Level up screens or EXP gained = WIN
+
+Respond with only: WIN or LOSE"""
+
+            response = self.llm.chat(prompt, image_data=img_b64)
+            result = response.strip().upper()
+            
+            victory = "WIN" in result
+            print(f"[Agent] Battle outcome detected: {'VICTORY' if victory else 'DEFEAT'}")
+            return victory
+            
+        except Exception as e:
+            print(f"[Agent] Could not detect outcome: {e}, assuming victory")
+            return True  # Fallback
     
     def handle_party_menu(self, frame):
         """Handle party management - jobs, abilities, equipment."""
