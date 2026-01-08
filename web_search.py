@@ -194,10 +194,31 @@ class SmartKnowledgeRetriever:
             ]
             result["confidence"] = 0.7  # Web results have medium confidence
             print(f"[Knowledge] Found {len(web_results)} web results")
+            
+            # Cache useful web results to RAG for future use
+            self._cache_to_rag(question, web_results)
         else:
             print(f"[Knowledge] No results found")
         
         return result
+    
+    def _cache_to_rag(self, query: str, web_results: List[Any]):
+        """Store useful web search results in RAG for future queries."""
+        if not self.rag:
+            return
+        
+        try:
+            for r in web_results[:2]:  # Cache top 2 results
+                # Combine title and snippet for richer content
+                content = f"{r.snippet}\n\nSource: {r.url}"
+                self.rag.store_strategy_guide(
+                    title=f"[Web] {r.title[:100]}",
+                    content=content,
+                    tags=["web_cache", query.split()[0] if query else "general"]
+                )
+            print(f"[Knowledge] Cached {min(2, len(web_results))} web results to RAG")
+        except Exception as e:
+            print(f"[Knowledge] Cache error: {e}")
     
     def get_knowledge_for_prompt(self, question: str) -> str:
         """
