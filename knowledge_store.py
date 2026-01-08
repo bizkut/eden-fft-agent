@@ -116,6 +116,12 @@ class KnowledgeStore:
             name="action_learnings",
             metadata={"description": "Button press effects learned from visual feedback"}
         )
+
+        # Create or get the strategy guides collection
+        self.strategy_collection = self.client.get_or_create_collection(
+            name="strategy_guides",
+            metadata={"description": "Game strategy guides, job classes, and tactics"}
+        )
         
         print(f"[KnowledgeStore] Initialized with {self.collection.count()} learnings")
     
@@ -210,6 +216,43 @@ class KnowledgeStore:
     def count(self) -> int:
         """Return total number of learnings stored."""
         return self.collection.count()
+
+    def store_strategy_guide(self, title: str, content: str, tags: List[str] = []) -> str:
+        """Store a strategy guide or wiki page."""
+        embedding = self.embedding_client.embed(content)
+        doc_id = f"guide_{int(time.time() * 1000)}"
+        
+        self.strategy_collection.add(
+            ids=[doc_id],
+            embeddings=[embedding],
+            documents=[content],
+            metadatas=[{
+                "title": title,
+                "tags": ",".join(tags),
+                "timestamp": time.time()
+            }]
+        )
+        print(f"[KnowledgeStore] Stored guide: {title}")
+        return doc_id
+
+    def query_strategy(self, query: str, n_results: int = 3) -> List[Dict[str, Any]]:
+        """Query strategy guides."""
+        embedding = self.embedding_client.embed(query)
+        results = self.strategy_collection.query(
+            query_embeddings=[embedding],
+            n_results=n_results,
+            include=["documents", "metadatas", "distances"]
+        )
+        
+        guides = []
+        if results and results["metadatas"]:
+            for i, meta in enumerate(results["metadatas"][0]):
+                guides.append({
+                    "title": meta["title"],
+                    "content": results["documents"][0][i],
+                    "similarity": 1 - results["distances"][0][i] if results["distances"] else 0
+                })
+        return guides
 
 
 # Test

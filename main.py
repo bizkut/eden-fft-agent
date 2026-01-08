@@ -4,6 +4,7 @@ Complete the entire game from start to finish.
 """
 import time
 import sys
+import os
 from typing import Optional
 from dataclasses import dataclass, field
 from enum import Enum, auto
@@ -45,7 +46,24 @@ try:
     HAS_MEMORY_READER = True
 except ImportError:
     HAS_MEMORY_READER = False
-    GDBMemoryReader = None
+    GDBMemoryReader, GameMemoryState = None, None
+    HAS_MEMORY_READER = False
+
+# Strategy Advisor module
+try:
+    from strategy_advisor import StrategyAdvisor
+    HAS_STRATEGY_ADVISOR = True
+except ImportError:
+    HAS_STRATEGY_ADVISOR = False
+    StrategyAdvisor = None
+
+# Strategy Learner module (tracks battle outcomes)
+try:
+    from strategy_learner import StrategyLearner
+    HAS_STRATEGY_LEARNER = True
+except ImportError:
+    HAS_STRATEGY_LEARNER = False
+    StrategyLearner = None
 
 
 class GamePhase(Enum):
@@ -68,7 +86,7 @@ class AgentConfig:
     """Configuration for the LLM Agent."""
     # LLM settings (Gemini defaults)
     llm_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
-    llm_api_key: str = "AIzaSyBObs2MPuWvURwIiUPlGeZ9N_QkDV6dSzw"
+    llm_api_key: str = field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
     llm_model: str = "gemini-2.0-flash"
     
     # Game settings
@@ -199,10 +217,23 @@ class FFTAgent:
             except Exception as e:
                 print(f"[Agent] Memory Reader error: {e}")
         
+        # Strategy Advisor
+        self.strategy_advisor = None
+        if HAS_STRATEGY_ADVISOR:
+            self.strategy_advisor = StrategyAdvisor()
+            print(f"[Agent] Strategy Advisor enabled")
+        
+        # Strategy Learner (tracks battle outcomes)
+        self.strategy_learner = None
+        if HAS_STRATEGY_LEARNER:
+            self.strategy_learner = StrategyLearner()
+            print(f"[Agent] Strategy Learner enabled")
+        
         # State
         self.current_phase = GamePhase.UNKNOWN
         self.battle_count = 0
         self.running = False
+        self.current_battle_record = None  # Active battle being tracked
     
     def start(self):
         """Start the agent."""
@@ -366,6 +397,20 @@ Just respond with the phase name, nothing else."""
         """Handle active battle - main tactical decision making."""
         print(f"In battle (#{self.battle_count + 1})")
         
+        # Start tracking this battle if not already
+        if self.strategy_learner and self.current_battle_record is None:
+            # Get party composition from memory if available
+            party_comp = []
+            if self.memory_reader:
+                mem_state = self.memory_reader.read_game_state()
+                party_comp = [{"unit_id": u.unit_id, "hp": u.hp, "max_hp": u.max_hp} 
+                              for u in mem_state.units if u.max_hp > 0]
+            
+            self.current_battle_record = self.strategy_learner.start_battle(
+                map_name=f"Battle_{self.battle_count + 1}",  # Would get from screen
+                party_composition=party_comp
+            )
+        
         # Extract game state from screen
         state = self.extract_battle_state(frame)
         
@@ -423,6 +468,12 @@ Just respond with the phase name, nothing else."""
             except Exception as e:
                 print(f"[Agent] Memory read failed: {e}")
         
+        # Add Strategic Advice (using memory/RAG data)
+        if self.strategy_advisor and self.memory_reader and mem_state:
+             tactical_advice = self.strategy_advisor.get_tactical_plan(mem_state)
+             if tactical_advice:
+                 prompt = prompt + "\n\n" + tactical_advice
+        
         if self.config.log_prompts:
             print(f"=== Prompt ===\n{prompt}")
         
@@ -454,6 +505,11 @@ Just respond with the phase name, nothing else."""
         
         print(f"Executing: {parsed.action} -> {parsed.target}")
         self.executor.execute(inputs)
+        
+        # Log action for learning
+        if self.strategy_learner and self.current_battle_record:
+            action_str = f"{parsed.action} -> {parsed.target}"
+            self.strategy_learner.log_action(self.current_battle_record, action_str)
         
         time.sleep(self.config.think_time)
     
@@ -507,6 +563,22 @@ Respond with ONLY: YES or NO"""
         print("Battle ended!")
         self.battle_count += 1
         
+        # Record battle outcome if learning is enabled
+        if self.strategy_learner and self.current_battle_record:
+            # TODO: Detect victory/defeat from screen (for now assume victory if we got here)
+            # In a real implementation, use OCR or LLM vision to detect "Victory" vs "Defeat"
+            victory = True  # Placeholder - would detect from screen
+            turns = len(self.current_battle_record.actions_taken)
+            units_lost = 0  # Would count from memory state
+            
+            self.strategy_learner.end_battle(
+                self.current_battle_record, 
+                victory=victory, 
+                turns=turns, 
+                units_lost=units_lost
+            )
+            self.current_battle_record = None
+        
         # Press A to advance through results
         for _ in range(5):
             self.controller.press_a()
@@ -515,7 +587,6 @@ Respond with ONLY: YES or NO"""
         # Auto-save if enabled
         if self.config.auto_save and self.battle_count % self.config.save_interval == 0:
             print(f"Auto-saving after {self.battle_count} battles...")
-            # Would need to navigate to save menu
     
     def handle_party_menu(self, frame):
         """Handle party management - jobs, abilities, equipment."""

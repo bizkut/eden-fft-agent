@@ -1,0 +1,23 @@
+[
+  {
+    "battle_id": "dorter_trade_city_1767872439",
+    "map_name": "Dorter Trade City",
+    "timestamp": 1767872439.018826,
+    "party_composition": [
+      {
+        "unit_id": 1,
+        "hp": 200,
+        "max_hp": 200
+      }
+    ],
+    "actions_taken": [
+      "MOVE -> (5,3)",
+      "ACT Attack -> Enemy Knight"
+    ],
+    "victory": true,
+    "turns_taken": 8,
+    "units_lost": 1,
+    "strategy_mode": "",
+    "key_decisions": []
+  }
+]

@@ -228,6 +228,34 @@ class GDBMemoryReader:
         
         return None
     
+    def write_memory(self, address: int, value: int, size: int = 4) -> bool:
+        """
+        Write value to memory at address.
+        
+        Args:
+            address: Memory address to write
+            value: Integer value to write
+            size: Number of bytes to write (1, 2, or 4)
+        
+        Returns:
+            True if write succeeded, False otherwise
+        """
+        # Convert value to little-endian hex string
+        value_bytes = value.to_bytes(size, byteorder='little')
+        hex_data = value_bytes.hex()
+        
+        # GDB write memory command: M<addr>,<len>:<hex_data>
+        command = f"M{address:x},{size}:{hex_data}"
+        response = self._send_packet(command)
+        
+        # "OK" means success
+        if response and response.upper() == "OK":
+            return True
+        
+        print(f"[MemoryReader] Write failed at {address:#x}: {response}")
+        return False
+
+    
     def read_unit_stats(self, unit_id: int) -> Optional[UnitStats]:
         """Read stats for a specific unit."""
         if unit_id not in UNIT_ADDRESSES:

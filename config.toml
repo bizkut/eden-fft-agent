@@ -1,15 +1,14 @@
 # FFT LLM Agent Configuration
 
 [llm]
-# Gemini API (OpenAI-compatible endpoint)
-#base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
-#api_key = "AIzaSyBObs2MPuWvURwIiUPlGeZ9N_QkDV6dSzw"
-#model = "gemini-2.0-flash"
+# Any OpenAI-compatible endpoint (LM Studio, Ollama, Gemini, GLM, OpenRouter, etc.)
+# Set api_key via environment variable (OPENAI_API_KEY) or leave blank for local endpoints
 base_url = "http://10.0.1.46:1234/v1"
 model = "zai-org/glm-4.6v-flash"
+# api_key = ""  # Optional: set in env var or uncomment and fill here
+
 # Thinking/Reasoning models need lower temp for precision, higher timeout for thought generation
 temperature = 0.4
-# max_tokens = 500
 max_tokens = 100000
 timeout = 120.0
 
@@ -46,6 +45,14 @@ screenshot_dir = "./screenshots"
 enabled = true
 host = "127.0.0.1"
 port = 6543
+
+[strategy]
+# Enable learning from battle outcomes (recommended)
+learning_enabled = true
+# Enable power-ups/cheats (set to false for pure LLM training)
+cheats_enabled = false
+# Max power-ups per battle (if cheats enabled)
+max_powerups_per_battle = 3
 
 [cemuhook]
 host = "127.0.0.1"
