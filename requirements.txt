@@ -1,0 +1,15 @@
+# FFT LLM Agent Dependencies
+
+# Core
+httpx>=0.24.0
+numpy>=1.24.0
+pillow>=10.0.0
+
+# OCR (optional - install tesseract separately)
+pytesseract>=0.3.10
+
+# Config
+tomli>=2.0.0
+
+# Alternative OCR (if pytesseract doesn't work)
+# easyocr>=1.7.0

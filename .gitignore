@@ -1,0 +1,11 @@
+__pycache__/
+.venv/
+env/
+venv/
+.env
+.DS_Store
+*.log
+*.pyc
+
+# Allow knowledge_db to be committed (pre-trained data)
+!knowledge_db/

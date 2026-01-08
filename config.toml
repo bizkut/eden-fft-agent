@@ -1,0 +1,49 @@
+# FFT LLM Agent Configuration
+
+[llm]
+# Gemini API (OpenAI-compatible endpoint)
+#base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+#api_key = "AIzaSyBObs2MPuWvURwIiUPlGeZ9N_QkDV6dSzw"
+#model = "gemini-2.0-flash"
+base_url = "http://10.0.1.46:1234/v1"
+model = "zai-org/glm-4.6v-flash"
+temperature = 0.7
+# max_tokens = 500
+max_tokens = 10000
+
+[game]
+# Difficulty: easy, normal, hard
+difficulty = "hard"
+
+# Auto-save settings
+auto_save = true
+save_interval = 5  # Save every N battles
+
+[timing]
+# Seconds between actions
+action_delay = 0.2
+# Minimum think time per decision
+think_time = 1.0
+# Cutscene skip delay
+cutscene_delay = 0.3
+
+[debug]
+verbose = true
+log_prompts = true
+save_screenshots = false
+screenshot_dir = "./screenshots"
+
+[cemuhook]
+host = "127.0.0.1"
+port = 26760
+
+[ocr]
+# OCR engine: tesseract, easyocr, none (mock)
+engine = "tesseract"
+# UI regions (calibrate for your screen resolution)
+# Format: x, y, width, height
+
+[ocr.regions]
+unit_stats = [900, 100, 300, 200]
+battle_log = [100, 500, 600, 100]
+menu = [400, 300, 400, 300]
