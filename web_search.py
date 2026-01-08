@@ -40,7 +40,17 @@ class WebSearcher:
         Search the web for the given query.
         Returns list of search results.
         """
-        # Use DuckDuckGo Instant Answer API
+        # Try DuckDuckGo Instant Answer API first
+        results = self._search_instant_answer(query, max_results)
+        
+        # If no results, try HTML search fallback
+        if not results:
+            results = self._search_html(query, max_results)
+        
+        return results
+    
+    def _search_instant_answer(self, query: str, max_results: int) -> List[SearchResult]:
+        """Use DuckDuckGo Instant Answer API."""
         try:
             response = self.client.get(
                 self.DDG_API,
@@ -76,7 +86,41 @@ class WebSearcher:
             return results[:max_results]
             
         except Exception as e:
-            print(f"[WebSearch] Error: {e}")
+            print(f"[WebSearch] Instant Answer API error: {e}")
+            return []
+    
+    def _search_html(self, query: str, max_results: int) -> List[SearchResult]:
+        """Fallback: Scrape DuckDuckGo HTML search results."""
+        try:
+            response = self.client.get(
+                "https://html.duckduckgo.com/html/",
+                params={"q": query},
+                headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"}
+            )
+            response.raise_for_status()
+            
+            results = []
+            # Simple parsing without BeautifulSoup
+            html = response.text
+            
+            # Extract result blocks (basic regex-like parsing)
+            import re
+            # Find result snippets
+            snippets = re.findall(r'class="result__snippet"[^>]*>([^<]+)<', html)
+            titles = re.findall(r'class="result__a"[^>]*>([^<]+)<', html)
+            urls = re.findall(r'class="result__url"[^>]*href="([^"]+)"', html)
+            
+            for i in range(min(len(snippets), max_results)):
+                results.append(SearchResult(
+                    title=titles[i] if i < len(titles) else f"Result {i+1}",
+                    url=urls[i] if i < len(urls) else "",
+                    snippet=snippets[i].strip()
+                ))
+            
+            return results
+            
+        except Exception as e:
+            print(f"[WebSearch] HTML search error: {e}")
             return []
     
     def search_fft(self, question: str) -> List[SearchResult]:
@@ -120,14 +164,18 @@ class SmartKnowledgeRetriever:
             "query": question
         }
         
-        # Try RAG first
+        # Try RAG first (strategy_guides collection)
         if self.rag:
             try:
-                rag_results = self.rag.query_wiki(question, n_results)
+                # Try strategy guides first
+                rag_results = self.rag.query_strategy(question, n_results)
                 
                 if rag_results and rag_results[0].get("similarity", 0) >= self.min_similarity:
                     result["source"] = "rag"
-                    result["results"] = rag_results
+                    result["results"] = [
+                        {"topic": r["title"], "content": r["content"]}
+                        for r in rag_results
+                    ]
                     result["confidence"] = rag_results[0]["similarity"]
                     print(f"[Knowledge] Found in RAG (confidence: {result['confidence']:.2f})")
                     return result
@@ -135,7 +183,7 @@ class SmartKnowledgeRetriever:
                 print(f"[Knowledge] RAG error: {e}")
         
         # Fallback to web search
-        print(f"[Knowledge] RAG insufficient, searching web...")
+        print(f"[Knowledge] RAG insufficient, searching web for: {question}")
         web_results = self.web.search_fft(question)
         
         if web_results:
