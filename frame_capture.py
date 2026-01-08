@@ -56,10 +56,12 @@ class FrameCapture:
                 # Avoid matching Terminal/iTerm that might have "eden" in the window title
                 is_terminal = owner_lower in ['terminal', 'iterm2', 'iterm', 'warp', 'kitty', 'alacritty']
                 
-                if owner_lower == 'eden' or (self.window_name in owner_lower and not is_terminal):
-                    self._window_id = window.get('kCGWindowNumber')
-                    print(f"Found Eden window: {owner} - {name} (ID: {self._window_id})")
-                    return self._window_id
+                if self.window_name in owner_lower or self.window_name in name.lower():
+                    # Double check it's not a terminal if the name is generic
+                    if not is_terminal:
+                        self._window_id = window.get('kCGWindowNumber')
+                        print(f"Found Window: {owner} - {name} (ID: {self._window_id})")
+                        return self._window_id
                     
         except Exception as e:
             print(f"Window search failed: {e}")

@@ -7,13 +7,18 @@
 #model = "gemini-2.0-flash"
 base_url = "http://10.0.1.46:1234/v1"
 model = "zai-org/glm-4.6v-flash"
-temperature = 0.7
+# Thinking/Reasoning models need lower temp for precision, higher timeout for thought generation
+temperature = 0.4
 # max_tokens = 500
-max_tokens = 10000
+max_tokens = 100000
+timeout = 120.0
 
 [game]
-# Difficulty: easy, normal, hard
-difficulty = "hard"
+# Difficulty: 
+# - easy / squire (no level scaling)
+# - normal / knight (standard scaling)
+# - hard / tactician (aggressive scaling, smarter AI)
+difficulty = "tactician"
 
 # Auto-save settings
 auto_save = true
@@ -27,11 +32,20 @@ think_time = 1.0
 # Cutscene skip delay
 cutscene_delay = 0.3
 
+[capture]
+window_title = "Eden"  # Target window name (partial match)
+
 [debug]
 verbose = true
 log_prompts = true
 save_screenshots = false
 screenshot_dir = "./screenshots"
+
+[gdb]
+# GDB stub for memory reading (game state)
+enabled = true
+host = "127.0.0.1"
+port = 6543
 
 [cemuhook]
 host = "127.0.0.1"

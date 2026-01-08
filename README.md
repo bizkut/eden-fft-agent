@@ -1,6 +1,6 @@
-# Eden LLM Agent for Final Fantasy Tactics (FFT)
+# Eden LLM Agent for Final Fantasy Tactics: The Ivalice Chronicles
 
-A vision-based autonomous agent that plays *Final Fantasy Tactics: The War of the Lions* using the Eden Emulator.
+A vision-based autonomous agent that plays *Final Fantasy Tactics: The Ivalice Chronicles* (Nintendo Switch) using the Eden Emulator.
 
 ## 🧠 Core Features
 - **Vision-Only Perception**: Uses `GLM-4V` (or other Vision LLMs) to "see" the screen. No memory hacking or OCR dependency.
@@ -18,7 +18,7 @@ A vision-based autonomous agent that plays *Final Fantasy Tactics: The War of th
    ```
 
 2. **Configure Emulator**
-   - Use Eden Emulator (or any Cemuhook-compatible emulator).
+   - Use **Eden Emulator** (Yuzu Fork).
    - Enable "Cemuhook UDP Server" in settings (Port 26760).
    - Ensure the game window title contains "Eden" or "FFT".
 

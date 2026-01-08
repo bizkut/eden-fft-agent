@@ -39,6 +39,14 @@ except ImportError:
     HAS_KNOWLEDGE_RETRIEVAL = False
     SmartKnowledgeRetriever = None
 
+# Memory Reading (GDB Stub)
+try:
+    from memory_reader import GDBMemoryReader, GameMemoryState
+    HAS_MEMORY_READER = True
+except ImportError:
+    HAS_MEMORY_READER = False
+    GDBMemoryReader = None
+
 
 class GamePhase(Enum):
     """Current phase of the game."""
@@ -76,6 +84,14 @@ class AgentConfig:
     verbose: bool = True
     log_prompts: bool = True
     use_vision: bool = True  # Multimodal support
+    
+    # Capture
+    window_title: str = "Eden"
+    
+    # GDB Memory Reading
+    gdb_enabled: bool = True
+    gdb_host: str = "127.0.0.1"
+    gdb_port: int = 6543
 
 
 def load_config_from_file() -> AgentConfig:
@@ -89,11 +105,17 @@ def load_config_from_file() -> AgentConfig:
                 data = tomli.load(f)
             llm = data.get("llm", {})
             game = data.get("game", {})
+            capture = data.get("capture", {})
+            gdb = data.get("gdb", {})
             return AgentConfig(
                 llm_base_url=llm.get("base_url", AgentConfig.llm_base_url),
                 llm_api_key=llm.get("api_key", AgentConfig.llm_api_key),
                 llm_model=llm.get("model", AgentConfig.llm_model),
                 difficulty=game.get("difficulty", "hard"),
+                window_title=capture.get("window_title", "Eden"),
+                gdb_enabled=gdb.get("enabled", True),
+                gdb_host=gdb.get("host", "127.0.0.1"),
+                gdb_port=gdb.get("port", 6543),
             )
     except ImportError:
         pass
@@ -132,7 +154,9 @@ class FFTAgent:
             else:
                 raise
         
-        self.capture = FrameCapture()
+        # Capture setup
+        target_window = getattr(self.config, "window_title", "Eden")
+        self.capture = FrameCapture(window_name=target_window)
         
         # No OCR - using Vision LLM for all text/phase detection
         self.executor = InputExecutor(self.controller, None, self.capture)
@@ -159,6 +183,21 @@ class FFTAgent:
                 print(f"[Agent] Knowledge Retrieval enabled (RAG + Web Search)")
             except Exception as e:
                 print(f"[Agent] Knowledge Retrieval disabled: {e}")
+        
+        # Memory Reader (GDB Stub)
+        self.memory_reader = None
+        if HAS_MEMORY_READER and self.config.gdb_enabled:
+            try:
+                self.memory_reader = GDBMemoryReader(
+                    host=self.config.gdb_host,
+                    port=self.config.gdb_port
+                )
+                if self.memory_reader.connect():
+                    print(f"[Agent] Memory Reader enabled (GDB @ {self.config.gdb_host}:{self.config.gdb_port})")
+                else:
+                    print(f"[Agent] Memory Reader: Could not connect to GDB stub (will retry)")
+            except Exception as e:
+                print(f"[Agent] Memory Reader error: {e}")
         
         # State
         self.current_phase = GamePhase.UNKNOWN
@@ -271,12 +310,21 @@ Just respond with the phase name, nothing else."""
         """Handle title screen - start new game or continue."""
         print("At title screen - starting new game...")
         # Navigate to New Game and select highest difficulty
-        self.controller.press_a()  # Select
+        self.controller.press_a()  # Select New Game
         time.sleep(0.5)
-        # If difficulty selection appears, navigate to Hard
-        if self.config.difficulty == "hard":
+        
+        # Difficulty selection (The Ivalice Chronicles)
+        # 1. Squire (Easy)
+        # 2. Knight (Normal)
+        # 3. Tactician (Hard)
+        
+        diff = self.config.difficulty.lower()
+        if diff in ["hard", "tactician"]:
             self.controller.press_dpad('down')
             self.controller.press_dpad('down')
+        elif diff in ["normal", "knight"]:
+            self.controller.press_dpad('down')
+            
         self.controller.press_a()
     
     def handle_cutscene(self):
@@ -364,6 +412,16 @@ Just respond with the phase name, nothing else."""
             )
             if learned_context:
                 prompt = prompt + "\n\n" + learned_context
+        
+        # Add live memory state (HP, MP, stats from GDB)
+        if self.memory_reader:
+            try:
+                mem_state = self.memory_reader.read_game_state()
+                memory_context = self.memory_reader.format_for_llm(mem_state)
+                if memory_context:
+                    prompt = prompt + "\n\n" + memory_context
+            except Exception as e:
+                print(f"[Agent] Memory read failed: {e}")
         
         if self.config.log_prompts:
             print(f"=== Prompt ===\n{prompt}")
