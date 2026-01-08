@@ -203,22 +203,86 @@ class SmartKnowledgeRetriever:
         return result
     
     def _cache_to_rag(self, query: str, web_results: List[Any]):
-        """Store useful web search results in RAG for future queries."""
+        """Fetch full article content from URLs and store in RAG."""
         if not self.rag:
             return
         
+        cached_count = 0
+        for r in web_results[:2]:  # Process top 2 results
+            try:
+                # Extract actual URL from DuckDuckGo redirect
+                url = r.url
+                if "uddg=" in url:
+                    import urllib.parse
+                    parsed = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+                    url = parsed.get("uddg", [url])[0]
+                
+                # Fetch full page content
+                full_content = self._fetch_page_content(url)
+                
+                if full_content and len(full_content) > 100:
+                    self.rag.store_strategy_guide(
+                        title=r.title[:100],
+                        content=full_content,
+                        tags=["web_learned", query.split()[0] if query else "general"]
+                    )
+                    cached_count += 1
+                    print(f"[Knowledge] Learned: {r.title[:50]}... ({len(full_content)} chars)")
+                    
+            except Exception as e:
+                print(f"[Knowledge] Failed to fetch {r.title[:30]}: {e}")
+        
+        if cached_count:
+            print(f"[Knowledge] Stored {cached_count} articles to brain")
+    
+    def _fetch_page_content(self, url: str, max_length: int = 5000) -> str:
+        """Fetch and extract main text content from a webpage."""
         try:
-            for r in web_results[:2]:  # Cache top 2 results
-                # Combine title and snippet for richer content
-                content = f"{r.snippet}\n\nSource: {r.url}"
-                self.rag.store_strategy_guide(
-                    title=f"[Web] {r.title[:100]}",
-                    content=content,
-                    tags=["web_cache", query.split()[0] if query else "general"]
-                )
-            print(f"[Knowledge] Cached {min(2, len(web_results))} web results to RAG")
+            response = self.web.client.get(
+                url,
+                headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"},
+                follow_redirects=True,
+                timeout=10.0
+            )
+            response.raise_for_status()
+            html = response.text
+            
+            # Simple content extraction (no BeautifulSoup dependency)
+            import re
+            
+            # Remove script and style tags
+            html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
+            html = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.DOTALL | re.IGNORECASE)
+            html = re.sub(r'<nav[^>]*>.*?</nav>', '', html, flags=re.DOTALL | re.IGNORECASE)
+            html = re.sub(r'<footer[^>]*>.*?</footer>', '', html, flags=re.DOTALL | re.IGNORECASE)
+            html = re.sub(r'<header[^>]*>.*?</header>', '', html, flags=re.DOTALL | re.IGNORECASE)
+            
+            # Extract text from paragraphs and headers
+            paragraphs = re.findall(r'<(?:p|h[1-6]|li)[^>]*>([^<]+(?:<[^>]+>[^<]*)*)</[^>]+>', html)
+            
+            # Clean up extracted text
+            text_parts = []
+            for p in paragraphs:
+                # Remove remaining HTML tags
+                clean = re.sub(r'<[^>]+>', ' ', p)
+                # Decode HTML entities
+                clean = clean.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
+                clean = clean.replace('&#x27;', "'").replace('&quot;', '"').replace('&nbsp;', ' ')
+                clean = ' '.join(clean.split())  # Normalize whitespace
+                if len(clean) > 20:  # Skip very short fragments
+                    text_parts.append(clean)
+            
+            content = '\n'.join(text_parts)
+            
+            # Truncate if too long
+            if len(content) > max_length:
+                content = content[:max_length] + "..."
+            
+            return content
+            
         except Exception as e:
-            print(f"[Knowledge] Cache error: {e}")
+            print(f"[Knowledge] Fetch error: {e}")
+            return ""
     
     def get_knowledge_for_prompt(self, question: str) -> str:
         """
