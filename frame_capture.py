@@ -147,6 +147,74 @@ class MockFrameCapture:
         return np.zeros((h, w, 3), dtype=np.uint8)
 
 
+class MJPEGStreamCapture:
+    """
+    Capture frames from Eden's built-in MJPEG stream.
+    Requires the Eden video streaming mod to be applied.
+    Falls back to FrameCapture if stream unavailable.
+    """
+    
+    def __init__(self, stream_url: str = "http://localhost:8765", window_name: str = "eden"):
+        self.stream_url = stream_url
+        self._fallback = None
+        self._window_name = window_name
+        self._stream = None
+        self._bytes_buffer = b''
+        
+        try:
+            import urllib.request
+            # Test connection
+            urllib.request.urlopen(stream_url, timeout=1)
+            print(f"[FrameCapture] Connected to MJPEG stream at {stream_url}")
+        except:
+            print(f"[FrameCapture] MJPEG stream unavailable, using screen capture fallback")
+            self._fallback = FrameCapture(window_name)
+    
+    def capture(self) -> "np.ndarray":
+        """Capture frame from MJPEG stream."""
+        if self._fallback:
+            return self._fallback.capture()
+        
+        try:
+            import urllib.request
+            import io
+            
+            # Open stream and read one frame
+            with urllib.request.urlopen(self.stream_url, timeout=2) as response:
+                # Read until we find JPEG markers
+                data = b''
+                while True:
+                    chunk = response.read(4096)
+                    if not chunk:
+                        break
+                    data += chunk
+                    
+                    # Find JPEG start and end markers
+                    start = data.find(b'\xff\xd8')
+                    end = data.find(b'\xff\xd9')
+                    
+                    if start != -1 and end != -1 and end > start:
+                        jpeg_data = data[start:end+2]
+                        
+                        # Decode JPEG to numpy
+                        img = Image.open(io.BytesIO(jpeg_data))
+                        return np.array(img)
+            
+        except Exception as e:
+            print(f"[FrameCapture] Stream error: {e}, falling back")
+            if not self._fallback:
+                self._fallback = FrameCapture(self._window_name)
+            return self._fallback.capture()
+        
+        # Return blank on failure
+        return np.zeros((720, 1280, 3), dtype=np.uint8)
+    
+    def capture_region(self, x: int, y: int, w: int, h: int) -> "np.ndarray":
+        """Capture specific region."""
+        full = self.capture()
+        return full[y:y+h, x:x+w]
+
+
 if __name__ == "__main__":
     import time
     
