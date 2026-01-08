@@ -31,84 +31,41 @@ class WikiKnowledge:
 
 
 class WikiKnowledgeStore(KnowledgeStore):
-    """Extended knowledge store that can hold wiki/guide content."""
+    """Extended knowledge store - uses unified strategy_guides collection."""
     
     def __init__(self, persist_directory: str = "./knowledge_db"):
         super().__init__(persist_directory)
-        
-        # Create separate collection for wiki knowledge
-        self.wiki_collection = self.client.get_or_create_collection(
-            name="wiki_knowledge",
-            metadata={"description": "FFT walkthrough and guide knowledge"}
-        )
-        print(f"[WikiKnowledge] Initialized with {self.wiki_collection.count()} articles")
+        # Use the SAME collection as strategy_guides (unified brain)
+        # wiki_collection is now just an alias for backwards compatibility
+        self.wiki_collection = self.strategy_collection
+        print(f"[WikiKnowledge] Unified brain with {self.strategy_collection.count()} total entries")
     
     def store_wiki_knowledge(self, knowledge: WikiKnowledge) -> str:
-        """Store wiki knowledge entry."""
-        # Create searchable text
-        search_text = f"{knowledge.topic}: {knowledge.content[:500]}"
-        
-        # Get embedding
-        embedding = self.embedding_client.embed(search_text)
-        
-        # Generate ID from topic
-        doc_id = f"wiki_{hash(knowledge.topic) % 1000000}"
-        
-        # Check if already exists
-        existing = self.wiki_collection.get(ids=[doc_id])
-        if existing and existing["ids"]:
-            print(f"[WikiKnowledge] Updating: {knowledge.topic[:50]}...")
-            self.wiki_collection.update(
-                ids=[doc_id],
-                embeddings=[embedding],
-                documents=[knowledge.content],
-                metadatas=[{
-                    "topic": knowledge.topic,
-                    "category": knowledge.category,
-                    "source": knowledge.source_url
-                }]
-            )
-        else:
-            print(f"[WikiKnowledge] Storing: {knowledge.topic[:50]}...")
-            self.wiki_collection.add(
-                ids=[doc_id],
-                embeddings=[embedding],
-                documents=[knowledge.content],
-                metadatas=[{
-                    "topic": knowledge.topic,
-                    "category": knowledge.category,
-                    "source": knowledge.source_url
-                }]
-            )
-        
-        return doc_id
+        """Store wiki knowledge in unified brain."""
+        # Use store_strategy_guide for unified storage
+        return self.store_strategy_guide(
+            title=knowledge.topic,
+            content=knowledge.content,
+            tags=[knowledge.category, "wiki", knowledge.source_url[:50] if knowledge.source_url else ""]
+        )
     
     def query_wiki(self, query: str, n_results: int = 3) -> List[Dict[str, Any]]:
-        """Query wiki knowledge for relevant guides."""
-        embedding = self.embedding_client.embed(query)
-        
-        results = self.wiki_collection.query(
-            query_embeddings=[embedding],
-            n_results=n_results,
-            include=["documents", "metadatas", "distances"]
-        )
-        
-        knowledge = []
-        if results and results["documents"]:
-            for i, doc in enumerate(results["documents"][0]):
-                meta = results["metadatas"][0][i] if results["metadatas"] else {}
-                knowledge.append({
-                    "topic": meta.get("topic", "Unknown"),
-                    "category": meta.get("category", ""),
-                    "content": doc,
-                    "similarity": 1 - results["distances"][0][i] if results["distances"] else 0
-                })
-        
-        return knowledge
+        """Query unified brain (alias for query_strategy)."""
+        results = self.query_strategy(query, n_results)
+        # Transform to expected format
+        return [
+            {
+                "topic": r.get("title", "Unknown"),
+                "category": "",
+                "content": r.get("content", ""),
+                "similarity": r.get("similarity", 0)
+            }
+            for r in results
+        ]
     
     def wiki_count(self) -> int:
-        """Return total wiki entries."""
-        return self.wiki_collection.count()
+        """Return total entries in unified brain."""
+        return self.strategy_collection.count()
 
 
 class FFTWikiScraper:

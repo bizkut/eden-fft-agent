@@ -150,7 +150,7 @@ class SmartKnowledgeRetriever:
     def __init__(self, knowledge_store=None, web_searcher=None):
         self.rag = knowledge_store
         self.web = web_searcher or WebSearcher()
-        self.min_similarity = 0.5  # Threshold for "good enough" RAG result
+        self.min_similarity = 0.15  # Threshold for "good enough" RAG result (sentence-transformers gives lower scores)
     
     def query(self, question: str, n_results: int = 3) -> Dict[str, Any]:
         """
@@ -164,20 +164,19 @@ class SmartKnowledgeRetriever:
             "query": question
         }
         
-        # Try RAG first (strategy_guides collection)
+        # Try RAG (unified brain)
         if self.rag:
             try:
-                # Try strategy guides first
                 rag_results = self.rag.query_strategy(question, n_results)
                 
                 if rag_results and rag_results[0].get("similarity", 0) >= self.min_similarity:
                     result["source"] = "rag"
                     result["results"] = [
-                        {"topic": r["title"], "content": r["content"]}
+                        {"topic": r.get("title", "Guide"), "content": r.get("content", "")}
                         for r in rag_results
                     ]
                     result["confidence"] = rag_results[0]["similarity"]
-                    print(f"[Knowledge] Found in RAG (confidence: {result['confidence']:.2f})")
+                    print(f"[Knowledge] Found in brain (confidence: {result['confidence']:.2f})")
                     return result
             except Exception as e:
                 print(f"[Knowledge] RAG error: {e}")
