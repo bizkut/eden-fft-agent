@@ -11,5 +11,9 @@ pytesseract>=0.3.10
 # Config
 tomli>=2.0.0
 
+# RAG Knowledge System
+chromadb>=0.4.0
+sentence-transformers>=2.2.0
+
 # Alternative OCR (if pytesseract doesn't work)
 # easyocr>=1.7.0
