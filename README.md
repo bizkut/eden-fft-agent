@@ -113,11 +113,31 @@ graph TD
 -   **`frame_capture.py`**: High-performance window capture using macOS Quartz (or fallback).
 -   **`knowledge_store.py`**: Vector database for retrieving strategy guides.
 
+## 🧠 Strategic Intelligence
+
+The agent now includes a sophisticated strategic layer:
+
+### 🛡️ Strategy Advisor
+An intelligent module (`strategy_advisor.py`) that:
+- **Analyzes Party Health**: Detects critical units and resource shortages.
+- **Identifies Roles**: Determines if units are Physical or Magic/Support.
+- **Sets Battle Modes**: Switches between **OFFENSIVE**, **DEFENSIVE**, and **EMERGENCY RECOVERY** based on battle state.
+
+### 📚 Learning System
+A self-improving system (`strategy_learner.py`) that:
+- **Tracks History**: Records every battle outcome (Victory/Defeat, Turns, Units Lost).
+- **Learns Patterns**: Identifies difficult maps based on win rates.
+- **Adapts Tactics**: Provides historical advice (e.g., *"We lost here twice, play defensively"*).
+
+### ⚡ Power-Up System (Optional)
+An optional helper (`power_manager.py`) enabled via `cheats_enabled = true` in config:
+- Can **Heal** or **Revive** units in emergencies.
+- Can **Buff** Brave/Faith stats via memory writes.
+
 ## 🤝 Contributing
 
 Contributions are welcome! We are currently working on:
--   **Strategic Advisor**: A module for pre-battle party optimization.
--   **Power-Up Manager**: Optional tools to modify memory for testing/assistance.
+-   **Video Streaming**: Native HTTP streaming from Eden (C++ mod).
 -   **Auto-Save/State Management**: Robust handling of save states.
 
 ## 📄 License
